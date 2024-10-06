@@ -49,11 +49,24 @@ acc_fbcca = [];
 for i = 1:length(epochs)
     epoch = epochs{i}; % Get the i-th trial/epoch
     
-    % --- CCA ---
+    % --- Check for low variance in epoch ---
+    if var(epoch(:)) < 1e-10
+        warning(['Epoch ', num2str(i), ' has very low variance and will be skipped.']);
+        continue;
+    end
+    
+    % --- Apply PCA to reduce dimensionality ---
+    [coeff, score, ~] = pca(epoch'); % PCA to reduce dimensionality of EEG data
+    reduced_epoch = score(:, 1:min(size(score, 2), 4)); % Keep top 4 components
+    
+    % --- CCA with Regularization ---
     max_corr = zeros(1, length(frequencies_of_interest));
     for f_idx = 1:length(frequencies_of_interest)
-        ref_signals = create_reference_signals(frequencies_of_interest(f_idx), harmonics, size(epoch, 2), fs);
-        [A, B, r] = canoncorr(epoch', ref_signals'); % CCA between EEG epoch and reference signals
+        ref_signals = create_reference_signals(frequencies_of_interest(f_idx), harmonics, size(reduced_epoch, 1), fs); % Ensure ref_signals has the same number of rows as reduced_epoch
+
+        % Regularized CCA
+        [A, B, r] = canoncorr(reduced_epoch, ref_signals'); % Transpose ref_signals to match reduced_epoch
+
         max_corr(f_idx) = max(r); % Take the maximum correlation
     end
     [~, predicted_freq_idx_cca] = max(max_corr); % Predicted frequency (CCA)
@@ -67,17 +80,15 @@ for i = 1:length(epochs)
         f_lower = frequencies_of_interest - 2 * band_idx; % Lower edge
         f_upper = frequencies_of_interest + 2 * band_idx; % Upper edge
         [b_fb, a_fb] = butter(1, [f_lower(f_idx) f_upper(f_idx)]/(fs/2), 'bandpass'); % Filter order reduced to 1
-        
-        % Zero-pad the epoch if it's too short for the filter
-        if size(epoch, 2) < 3 * length(b_fb)
-            epoch_padded = [epoch, zeros(size(epoch, 1), 3 * length(b_fb) - size(epoch, 2))]; % Zero-pad the epoch
-        else
-            epoch_padded = epoch;
+
+        % Skip the epoch if it's too short for the filter or if it's low variance
+        if size(epoch, 2) < 3 * length(b_fb) || var(epoch(:)) < 1e-10
+            continue;
         end
-        
-        epoch_fb = filtfilt(b_fb, a_fb, epoch_padded); % Apply filter to the padded epoch
-        
-        % CCA with filter bank
+
+        epoch_fb = filtfilt(b_fb, a_fb, epoch); % Apply filter to the padded epoch
+
+        % CCA with filter bank (FBCCA) and regularization
         for f_idx = 1:length(frequencies_of_interest)
             ref_signals = create_reference_signals(frequencies_of_interest(f_idx), harmonics, size(epoch_fb, 2), fs);
             [~, ~, r_fb] = canoncorr(epoch_fb', ref_signals'); % CCA between filtered EEG and reference signals
