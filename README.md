@@ -1,4 +1,4 @@
-# ssvep_data_analysis
+# SSVEP Data Analysis: CCA, FBCCA, LDA
 
 
 ## Project Overview
