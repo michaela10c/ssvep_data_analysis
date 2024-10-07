@@ -3,6 +3,44 @@
 % Load session data
 data1_session1 = load('subject_1_fvep_led_training_1.mat');
 
+% Load class information from 'classInfo_4_5.m' file
+class_labels = [
+    1 0 0 0;
+    0 1 0 0;
+    0 0 1 0;
+    0 0 0 1;
+    1 0 0 0;
+    0 1 0 0;
+    0 0 1 0;
+    0 0 0 1;
+    1 0 0 0;
+    0 1 0 0;
+    0 0 1 0;
+    0 0 0 1;
+    1 0 0 0;
+    0 1 0 0;
+    0 0 1 0;
+    0 0 0 1;
+    1 0 0 0;
+    0 1 0 0;
+    0 0 1 0;
+    0 0 0 1
+];
+
+% Convert one-hot encoded labels to frequencies
+ground_truth_frequencies = [9, 10, 12, 15];  % Define this to match the order of the one-hot encoding
+ground_truth_frequencies = ground_truth_frequencies(class_labels * [1; 2; 3; 4]);
+
+% Create a new variable for comparing with LDA
+lda_ground_truth = zeros(length(ground_truth_frequencies), 1);  % Initialize LDA ground truth
+for i = 1:length(ground_truth_frequencies)
+    if ismember(ground_truth_frequencies(i), [9, 10])
+        lda_ground_truth(i) = 0;  % Low-frequency group (9/10 Hz)
+    elseif ismember(ground_truth_frequencies(i), [12, 15])
+        lda_ground_truth(i) = 3;  % High-frequency group (12/15 Hz)
+    end
+end
+
 % Extract parts 
 sample_time = data1_session1.y(1, 1001:end); % Time samples from the 1001st sample onward
 EEG_data = data1_session1.y(2:9, 1001:end); % EEG data from CH2-9, starting from the 1001st sample
@@ -10,7 +48,7 @@ trigger_info = data1_session1.y(10, 1001:end); % Trigger information from 1001st
 lda_output = data1_session1.y(11, 1001:end); % LDA classification output from 1001st sample
 
 % Sampling rate
-fs = 256; % Sampling rate in Hz
+fs = 256; % Hz
 
 % Bandpass filter settings (5-30 Hz) to better capture SSVEP frequencies
 [b_bandpass, a_bandpass] = butter(4, [5 30]/(fs/2), 'bandpass'); % 4th-order Butterworth bandpass filter
@@ -27,139 +65,182 @@ for ch = 1:8
     EEG_data_filtered(ch, :) = filtfilt(b_notch, a_notch, EEG_data_bandpassed); % Apply notch filter to the bandpassed data
 end
 
-% Segmenting the data based on trigger information (Epoching)
-epochs = {}; % To store segmented trials
-window_size = fs * 3; % 3-second window
-onsets = find(trigger_info == 1); % Find where the stimulus is ON (trigger == 1)
+% Find the transitions in trigger_info from 0 to 1
+onsets = find(diff(trigger_info) == 1) + 1;  % +1 to get the first sample of the onset
 
-% Extract epochs based on the stimulus onsets, ensure all epochs are the same size
-max_epoch_length = window_size;
+% Initialize epochs container
+epochs = {}; 
+window_size = fs * 3;  % Example window of 3 seconds
+
+% Extract the epochs around the stimulation onsets
 for i = 1:length(onsets)
     if (onsets(i) + window_size - 1) <= length(sample_time)
         epoch = EEG_data_filtered(:, onsets(i):onsets(i) + window_size - 1);
-        % Pad or truncate to match max_epoch_length
-        epoch = epoch(:, 1:max_epoch_length); % Force all epochs to be the same size
-        epochs{i} = epoch;
+        epochs{i} = epoch;  % Store the epoch
     end
 end
 
-% Number of epochs
-num_epochs = length(epochs);  % Ensure num_epochs is defined here
+% Ensure that lda_output matches the number of epochs
+num_epochs = length(epochs);
+assert(num_epochs == length(lda_ground_truth))
 
-% Frequencies of interest for SSVEP stimuli
-frequencies_of_interest = [9, 10, 12, 15]; % Define target frequencies
-harmonics = 3; % Increased to 3 harmonics to capture more signal detail
-num_channels = size(EEG_data_filtered, 1);
+% Define frequencies of interest and harmonics
+frequencies_of_interest = [9, 10, 12, 15];  % Add these before the parfor
+frequencies_of_interest_reversed = flip(frequencies_of_interest);
+harmonics = 3;  % Number of harmonics to consider
 
-% Ground truth frequencies (from LDA output)
-ground_truth_frequencies = lda_output(1:num_epochs); % LDA output as ground truth
+%% Plot the FFT of each epoch
 
-%% CCA and FBCCA Analysis (with Parallelism)
+% Parameters for FFT
+nfft = window_size;  % FFT points should match the length of the window
+frequencies = (0:nfft-1) * (fs / nfft);  % Frequency axis (in Hz)
+max_plot_freq = 60;  % Maximum frequency to plot (e.g., up to 60 Hz)
+
+% Plot the FFT for each channel in each epoch
+for i = 1:length(epochs)
+    epoch = epochs{i};
+    
+    figure;
+    sgtitle(['FFT for Epoch ', num2str(i)]);  % Title for the plot
+    
+    for ch = 1:size(epoch, 1)  % Loop over all EEG channels
+        % Compute FFT
+        epoch_fft = fft(epoch(ch, :), nfft);
+        P2 = abs(epoch_fft / nfft);  % Two-sided spectrum
+        P1 = P2(1:nfft/2+1);  % One-sided spectrum
+        P1(2:end-1) = 2 * P1(2:end-1);  % Double the energy for the positive half
+        
+        % Plot
+        subplot(4, 2, ch);  % Assuming 8 channels, create a subplot for each channel
+        plot(frequencies(1:nfft/2+1), P1);
+        title(['Channel ', num2str(ch)]);
+        xlabel('Frequency (Hz)');
+        ylabel('Amplitude');
+        xlim([0 max_plot_freq]);  % Limit the x-axis to the maximum plot frequency
+        grid on;
+    end
+end
+
+
+%% LDA Alignment using Trigger Info
+
+% Extract LDA output for each epoch based on trigger transitions
+predicted_labels_lda = zeros(num_epochs, 1);  % Initialize the predicted LDA labels
+
+for i = 1:num_epochs
+    epoch_start = onsets(i);  % Get the start of the epoch based on trigger_info
+    epoch_end = min(epoch_start + window_size - 1, length(lda_output));  % Ensure we don't exceed the LDA output length
+
+    % Extract the LDA output for the duration of the epoch
+    epoch_lda_output = lda_output(epoch_start:epoch_end);
+    
+    % Use non-zero values of LDA output to find relevant predictions
+    non_zero_lda_output = epoch_lda_output(epoch_lda_output ~= 0);
+    
+    % If there are non-zero values, take the most frequent (mode) or the last value
+    if ~isempty(non_zero_lda_output)
+        predicted_labels_lda(i) = mode(non_zero_lda_output);  % Use mode for stable predictions
+    else
+        predicted_labels_lda(i) = 0;  % Fallback to 0 if no non-zero LDA values are found
+    end
+end
+
+%% CCA, FBCCA, and LDA Analysis
 
 acc_cca = zeros(num_epochs, 1);
 acc_fbcca = zeros(num_epochs, 1);
+acc_lda = zeros(num_epochs, 1);  
+predicted_labels_cca = zeros(num_epochs, 1); 
+predicted_labels_fbcca = zeros(num_epochs, 1); 
 
-parpool; % Start parallel pool
+% Check if a pool already exists
+if isempty(gcp('nocreate'))
+    parpool;
+end
 
-% CCA and FBCCA analysis using parallel processing
 parfor i = 1:num_epochs
-    epoch = epochs{i}; % Get the i-th trial/epoch
+    epoch = epochs{i};
 
-    % --- Check for low variance in epoch ---
-    if var(epoch(:)) < 1e-10
-        warning(['Epoch ', num2str(i), ' has very low variance and will be skipped.']);
-        continue;
-    end
+    % Ensure we do not have low variance
+    assert(var(epoch(:)) >= 1e-10);
 
-    % --- Apply PCA to reduce dimensionality ---
-    [coeff, score, ~] = pca(epoch'); % PCA to reduce dimensionality of EEG data
-    reduced_epoch = score(:, 1:min(size(score, 2), 4)); % Keep top 4 components
+    % Apply PCA
+    [coeff, score, ~] = pca(epoch'); 
+    reduced_epoch = score(:, 1:min(size(score, 2), 4)); 
 
-    % --- CCA with Regularization ---
+    % --- CCA Analysis ---
     max_corr = zeros(1, length(frequencies_of_interest));
     for f_idx = 1:length(frequencies_of_interest)
-        ref_signals = create_reference_signals(frequencies_of_interest(f_idx), harmonics, size(reduced_epoch, 1), fs); % Ensure ref_signals has the same number of rows as reduced_epoch
-
-        % Regularized CCA
-        [A, B, r] = canoncorr(reduced_epoch, ref_signals'); % Transpose ref_signals to match reduced_epoch
-
-        max_corr(f_idx) = max(r); % Take the maximum correlation
+        ref_signals = create_reference_signals(frequencies_of_interest_reversed(f_idx), harmonics, size(reduced_epoch, 1), fs);
+        [~, ~, r] = canoncorr(reduced_epoch, ref_signals');
+        max_corr(f_idx) = max(r); 
     end
-    [~, predicted_freq_idx_cca] = max(max_corr); % Predicted frequency (CCA)
-    predicted_frequency_cca = frequencies_of_interest(predicted_freq_idx_cca); % Get the predicted frequency
+    [~, predicted_freq_idx_cca] = max(max_corr); 
+    predicted_labels_cca(i) = frequencies_of_interest(predicted_freq_idx_cca);
 
-    % Map the predicted frequency to ground truth labels (0 or 3)
-    if predicted_frequency_cca == 9 || predicted_frequency_cca == 10
-        predicted_label_cca = 0; % Frequencies 9Hz or 10Hz -> Label 0
-    elseif predicted_frequency_cca == 12 || predicted_frequency_cca == 15
-        predicted_label_cca = 3; % Frequencies 12Hz or 15Hz -> Label 3
-    end
+    % Check prediction
+    acc_cca(i) = (predicted_labels_cca(i) == ground_truth_frequencies(i));
 
-    % Check if prediction is correct
-    if predicted_label_cca == ground_truth_frequencies(i)
-        acc_cca(i) = 1; % Correct prediction
-    else
-        acc_cca(i) = 0; % Incorrect prediction
-    end
-
-    % --- FBCCA (Filter Bank CCA) ---
-    num_bands = 7; % Increased to 7 bands for finer frequency resolution
+    % --- FBCCA Analysis ---
     fb_corr = zeros(1, length(frequencies_of_interest));
+    num_bands = 7;
     for band_idx = 1:num_bands
-        % Create bandpass filters for each band (reduce the filter order to 1)
-        f_lower = frequencies_of_interest - 2 * band_idx; % Lower edge
-        f_upper = frequencies_of_interest + 2 * band_idx; % Upper edge
-        [b_fb, a_fb] = butter(1, [f_lower(f_idx) f_upper(f_idx)]/(fs/2), 'bandpass'); % Filter order reduced to 1
-
-        % Skip the epoch if it's too short for the filter or if it's low variance
-        if size(epoch, 2) < 3 * length(b_fb) || var(epoch(:)) < 1e-10
-            continue;
-        end
-
-        epoch_fb = filtfilt(b_fb, a_fb, epoch); % Apply filter to the padded epoch
-
-        % CCA with filter bank (FBCCA) and regularization
+        f_lower = max(0, frequencies_of_interest - 2 * band_idx);  % Clamp to 0
+        f_upper = min(fs/2, frequencies_of_interest + 2 * band_idx);  % Clamp to Nyquist
+    
         for f_idx = 1:length(frequencies_of_interest)
-            ref_signals = create_reference_signals(frequencies_of_interest(f_idx), harmonics, size(epoch_fb, 2), fs);
-            [~, ~, r_fb] = canoncorr(epoch_fb', ref_signals'); % CCA between filtered EEG and reference signals
-            fb_corr(f_idx) = max(r_fb) + fb_corr(f_idx); % Accumulate correlation over bands
+            % Ensure valid frequency range for bandpass filter
+            if f_lower(f_idx) >= f_upper(f_idx)
+                warning('Skipping band %d due to invalid frequency range.', band_idx);
+                continue;
+            end
+    
+            % Normalize frequencies to be between 0 and 1
+            norm_f_lower = f_lower(f_idx) / (fs/2);
+            norm_f_upper = f_upper(f_idx) / (fs/2);
+    
+            % Ensure that the normalized frequencies are within the valid range (0,1)
+            if norm_f_lower <= 0 || norm_f_upper >= 1 || norm_f_lower >= norm_f_upper
+                warning('Skipping due to invalid normalized frequency range.');
+                continue;
+            end
+    
+            % Apply Butterworth filter with validated frequency range
+            [b_fb, a_fb] = butter(1, [norm_f_lower norm_f_upper], 'bandpass');
+            epoch_fb = filtfilt(b_fb, a_fb, epoch);
+    
+            % CCA analysis on filtered epoch
+            ref_signals = create_reference_signals(frequencies_of_interest_reversed(f_idx), harmonics, size(epoch_fb, 2), fs);
+            [~, ~, r_fb] = canoncorr(epoch_fb', ref_signals');
+            fb_corr(f_idx) = max(r_fb) + fb_corr(f_idx);
         end
     end
-    [~, predicted_freq_idx_fbcca] = max(fb_corr); % Predicted frequency (FBCCA)
-    predicted_frequency_fbcca = frequencies_of_interest(predicted_freq_idx_fbcca); % Get the predicted frequency
+    
+    [~, predicted_freq_idx_fbcca] = max(fb_corr); 
+    predicted_labels_fbcca(i) = frequencies_of_interest(predicted_freq_idx_fbcca);
 
-    % Map the predicted frequency to ground truth labels (0 or 3)
-    if predicted_frequency_fbcca == 9 || predicted_frequency_fbcca == 10
-        predicted_label_fbcca = 0; % Frequencies 9Hz or 10Hz -> Label 0
-    elseif predicted_frequency_fbcca == 12 || predicted_frequency_fbcca == 15
-        predicted_label_fbcca = 3; % Frequencies 12Hz or 15Hz -> Label 3
-    end
+    % Check prediction
+    acc_fbcca(i) = (predicted_labels_fbcca(i) == ground_truth_frequencies(i));
 
-    % Check if prediction is correct
-    if predicted_label_fbcca == ground_truth_frequencies(i)
-        acc_fbcca(i) = 1; % Correct prediction
-    else
-        acc_fbcca(i) = 0; % Incorrect prediction
-    end
+    % --- LDA Analysis ---
+    acc_lda(i) = (predicted_labels_lda(i) == lda_ground_truth(i));
 
-    % Display progress every 10 epochs
+    % Progress
     if mod(i, 10) == 0
         fprintf('Epoch %d of %d processed.\n', i, num_epochs);
     end
 end
 
-% Shut down the parallel pool after the parfor loop finishes
-delete(gcp); % Programmatically shut down parallel pool
+delete(gcp); % Shutdown parallel pool
 
+% --- Helper Function to Create Reference Signals ---
 function ref_signals = create_reference_signals(frequency, harmonics, num_samples, fs)
-    % Function to create reference signals for CCA analysis
     % frequency: target frequency in Hz
     % harmonics: number of harmonics to include
     % num_samples: number of time points
     % fs: sampling frequency (in Hz)
 
     t = (0:num_samples-1) / fs; % Time vector
-
     ref_signals = []; % Initialize the reference signal matrix
 
     % Create sine and cosine signals for each harmonic
@@ -168,26 +249,25 @@ function ref_signals = create_reference_signals(frequency, harmonics, num_sample
     end
 end
 
+
 % Calculate average accuracies
 avg_cca_accuracy = mean(acc_cca) * 100;
 avg_fbcca_accuracy = mean(acc_fbcca) * 100;
+avg_lda_accuracy = mean(acc_lda) * 100;
 
 % Display the accuracies for each model
 disp(['CCA Accuracy: ', num2str(avg_cca_accuracy), '%']);
 disp(['FBCCA Accuracy: ', num2str(avg_fbcca_accuracy), '%']);
+disp(['LDA Accuracy: ', num2str(avg_lda_accuracy), '%']);
 
 % Combine the accuracies into one matrix for plotting
-accuracies = [avg_cca_accuracy, avg_fbcca_accuracy];
+accuracies = [avg_cca_accuracy, avg_fbcca_accuracy, avg_lda_accuracy];
 
 % Plot the accuracies on the same bar graph
 figure;
 bar(accuracies);
-title('Classification Accuracies of CCA and FBCCA');
+title('Classification Accuracies of CCA, FBCCA, and LDA');
 ylabel('Accuracy (%)');
-xticklabels({'CCA', 'FBCCA'}); % Labels for x-axis
+xticklabels({'CCA', 'FBCCA', 'LDA'}); % Labels for x-axis
 ylim([0, 100]); % Set the Y-axis range to 0-100%
 set(gca, 'FontSize', 12); 
-
-% data1_session2 = load('subject_1_fvep_led_training_2.mat');
-% data2_session1 = load('subject_2_fvep_led_training_1.mat');
-% data2_session2 = load('subject_2_fvep_led_training_2.mat');
