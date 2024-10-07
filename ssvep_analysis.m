@@ -50,6 +50,18 @@ lda_output = data1_session1.y(11, 1001:end); % LDA classification output from 10
 % Sampling rate
 fs = 256; % Hz
 
+% Plot raw EEG signals (all channels together) with trigger info
+figure;
+hold on;
+plot(EEG_data', 'LineWidth', 1.2); % Plot all EEG channels together
+plot(trigger_info, 'k', 'LineWidth', 1.5); % Overlay trigger info in black
+title('Raw EEG Data with Trigger Info');
+xlabel('Sample Index');
+ylabel('Amplitude');
+legend('EEG CH2', 'EEG CH3', 'EEG CH4', 'EEG CH5', 'EEG CH6', 'EEG CH7', 'EEG CH8', 'EEG CH9', 'Trigger Info');
+grid on;
+hold off;
+
 % Bandpass filter settings (5-30 Hz) to better capture SSVEP frequencies
 [b_bandpass, a_bandpass] = butter(4, [5 30]/(fs/2), 'bandpass'); % 4th-order Butterworth bandpass filter
 
@@ -64,6 +76,18 @@ for ch = 1:8
     % Apply notch filter at 50 Hz
     EEG_data_filtered(ch, :) = filtfilt(b_notch, a_notch, EEG_data_bandpassed); % Apply notch filter to the bandpassed data
 end
+
+% Plot filtered EEG signals (all channels together) with trigger info
+figure;
+hold on;
+plot(EEG_data_filtered', 'LineWidth', 1.2); % Plot all EEG channels together
+plot(trigger_info, 'k', 'LineWidth', 1.5); % Overlay trigger info in black
+title('Filtered EEG Data with Trigger Info');
+xlabel('Sample Index');
+ylabel('Amplitude');
+legend('EEG CH2', 'EEG CH3', 'EEG CH4', 'EEG CH5', 'EEG CH6', 'EEG CH7', 'EEG CH8', 'EEG CH9', 'Trigger Info');
+grid on;
+hold off;
 
 % Find the transitions in trigger_info from 0 to 1
 onsets = find(diff(trigger_info) == 1) + 1;  % +1 to get the first sample of the onset
