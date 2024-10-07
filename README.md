@@ -2,7 +2,7 @@
 
 
 ## Project Overview
-This repository contains the data analysis and results for our Steady-State Visually Evoked Potentials (SSVEP) project, which investigates signal preprocessing, feature extraction, and classification for SSVEP signals using Canonical Correlation Analysis (CCA), Filter Bank CCA (FBCCA), and Linear Discriminant Analysis (LDA). This project is built using EEG datasets recorded from two subjects across multiple sessions. The aim is to enhance classification accuracy of brain signals, and potentially improve results through a combination of machine learning and signal processing techniques.
+This repository contains the data analysis and results for our Steady-State Visually Evoked Potentials (SSVEP) project, which investigates signal preprocessing, feature extraction, and classification for SSVEP signals using **Canonical Correlation Analysis (CCA)**, **Filter Bank CCA (FBCCA)**, and **Linear Discriminant Analysis (LDA)**. This project is built using EEG datasets recorded from **two subjects** across **two sessions**. The aim is to enhance classification accuracy of brain signals, and potentially improve results through a combination of machine learning and signal processing techniques.
 
 ## Folder Structure and File Descriptions
 
@@ -26,11 +26,24 @@ This repository contains the data analysis and results for our Steady-State Visu
 ### Paper
 - `How_many_people_could_use_an_SSVEP_BCI_simultaneously.pdf`: An exploratory document looking at the simultaneous usability of SSVEP-based BCIs by multiple users.
 
-## How to Use:
+## How to Use
 1. Load the appropriate .mat or .EDF files for EEG data.
 2. Run the provided MATLAB scripts to preprocess, extract features, and classify the data.
 3. Visualize the classification results (CCA, FBCCA, LDA) using the included plotting scripts or visual results (PNG files).
 4. Refer to the PDF files for detailed visual representations of the data and analysis.
+
+## Results
+Our results show that **CCA outperforms both LDA and FBCCA for both subjects and both training sessions**. 
+<img width="485" alt="Screenshot 2024-10-07 at 7 47 28 PM" src="https://github.com/user-attachments/assets/adbaf378-fb55-468b-8d06-2ca4497e8252">
+
+
+| Subject, Training   | Classification Accuracy (%) CCA, FBCCA, LDA |
+|---------------------|---------------------------------------------|
+| S1T1 (top left)      | 95, 80, 65                                  |
+| S1T2 (top right)     | 100, 65, 70                                 |
+| S2T1 (bottom left)   | 70, 40, 20                                  |
+| S2T2 (bottom right)  | 45, 40, 25                                  |
+
 
 ## Slides
 This project was done as part of the [2024 BR41N.IO Hackathon](https://www.br41n.io/IEEE-SMC-2024). You can find the **slides** to this project **[here](https://docs.google.com/presentation/d/1HL1KEYquqq7TUbjNczR6fmc6t5TpPdv-/edit?usp=drive_link&ouid=112230274661781285675&rtpof=true&sd=true)**.  
