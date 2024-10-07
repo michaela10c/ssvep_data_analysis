@@ -33,4 +33,4 @@ This repository contains the data analysis and results for our Steady-State Visu
 4. Refer to the PDF files for detailed visual representations of the data and analysis.
 
 ## Slides
-This project was done as part of the [2024 BR41N.IO Hackathon][(https://www.br41n.io/IEEE-SMC-2024). You can find the slides [here](https://docs.google.com/presentation/d/1HL1KEYquqq7TUbjNczR6fmc6t5TpPdv-/edit?usp=drive_link&ouid=112230274661781285675&rtpof=true&sd=true).  
+This project was done as part of the [2024 BR41N.IO Hackathon](https://www.br41n.io/IEEE-SMC-2024). You can find the slides [here](https://docs.google.com/presentation/d/1HL1KEYquqq7TUbjNczR6fmc6t5TpPdv-/edit?usp=drive_link&ouid=112230274661781285675&rtpof=true&sd=true).  
