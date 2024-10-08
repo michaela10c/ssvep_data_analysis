@@ -34,6 +34,8 @@ This repository contains the data analysis and results for our Steady-State Visu
 
 ## Results
 Our results show that **CCA outperforms both LDA and FBCCA for both subjects and both training sessions**. 
+
+
 <img width="485" alt="Screenshot 2024-10-07 at 7 47 28 PM" src="https://github.com/user-attachments/assets/adbaf378-fb55-468b-8d06-2ca4497e8252">
 
 
