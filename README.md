@@ -42,10 +42,10 @@ Our results show that **CCA outperforms both LDA and FBCCA for both subjects and
 
 | Subject | Training Session | CCA Accuracy (%) | FBCCA Accuracy (%) | LDA Accuracy (%) |
 |---------|----------|------------------|--------------------|------------------|
-| S1      | T1       | 95               | 80                 | 65               |
-| S1      | T2       | 100              | 65                 | 70               |
-| S2      | T1       | 70               | 40                 | 20               |
-| S2      | T2       | 45               | 40                 | 25               |
+| 1      | 1       | 95               | 80                 | 65               |
+| 1      | 2       | 100              | 65                 | 70               |
+| 2      | 1       | 70               | 40                 | 20               |
+| 2      | 2       | 45               | 40                 | 25               |
 
 
 ## Slides
