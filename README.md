@@ -39,12 +39,12 @@ Our results show that **CCA outperforms both LDA and FBCCA for both subjects and
 <img width="485" alt="Screenshot 2024-10-07 at 7 47 28 PM" src="https://github.com/user-attachments/assets/adbaf378-fb55-468b-8d06-2ca4497e8252">
 
 
-| Subject, Training   | Classification Accuracy (%) CCA, FBCCA, LDA |
-|---------------------|---------------------------------------------|
-| S1T1 (top left)      | 95, 80, 65                                  |
-| S1T2 (top right)     | 100, 65, 70                                 |
-| S2T1 (bottom left)   | 70, 40, 20                                  |
-| S2T2 (bottom right)  | 45, 40, 25                                  |
+| Subject | Training | CCA Accuracy (%) | FBCCA Accuracy (%) | LDA Accuracy (%) |
+|---------|----------|------------------|--------------------|------------------|
+| S1      | T1       | 95               | 80                 | 65               |
+| S1      | T2       | 100              | 65                 | 70               |
+| S2      | T1       | 70               | 40                 | 20               |
+| S2      | T2       | 45               | 40                 | 25               |
 
 
 ## Slides
